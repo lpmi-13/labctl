@@ -146,11 +146,18 @@ type pushState struct {
 	remoteFiles map[string]string
 
 	localFiles map[string]string
+
+	// failedFiles maps a local file to the digest that the server rejected
+	// with a client error - such a file is not re-uploaded until it changes.
+	failedFiles map[string]string
 }
 
 func (s *pushState) toUpload() []string {
 	var files []string
 	for file, digest := range s.localFiles {
+		if s.failedFiles[file] == digest {
+			continue
+		}
 		if s.remoteFiles[file] == "" || s.remoteFiles[file] != digest {
 			files = append(files, file)
 		}
@@ -172,7 +179,7 @@ func (s *pushState) toDelete() []string {
 
 func RunPushOnce(ctx context.Context, cli labcli.CLI, config PushConfig) error {
 	var (
-		state pushState = pushState{dir: config.Dir}
+		state pushState = pushState{dir: config.Dir, failedFiles: map[string]string{}}
 		err   error
 	)
 
@@ -215,7 +222,7 @@ func RunPushOnce(ctx context.Context, cli labcli.CLI, config PushConfig) error {
 
 func RunPushWatch(ctx context.Context, cli labcli.CLI, config PushConfig) error {
 	var (
-		state pushState = pushState{dir: config.Dir}
+		state pushState = pushState{dir: config.Dir, failedFiles: map[string]string{}}
 		err   error
 	)
 
@@ -304,6 +311,8 @@ func reconcileContentState(ctx context.Context, cli labcli.CLI, config PushConfi
 		}
 
 		p.Go(func(ctx context.Context) error {
+			var uploadErr error
+
 			if filepath.Ext(file) == ".md" {
 				content, err := os.ReadFile(filepath.Join(state.dir, file))
 				if err != nil {
@@ -324,7 +333,7 @@ func reconcileContentState(ctx context.Context, cli labcli.CLI, config PushConfi
 					file,
 					string(content),
 				); err != nil {
-					return fmt.Errorf("couldn't upload content markdown file %q: %w", file, err)
+					uploadErr = fmt.Errorf("couldn't upload content markdown file %q: %w", file, err)
 				}
 			} else {
 				if err := cli.Client().UploadContentFile(
@@ -338,12 +347,18 @@ func reconcileContentState(ctx context.Context, cli labcli.CLI, config PushConfi
 						cli.PrintAux("Skipping %s - the file no longer exists locally\n", file)
 						return nil
 					}
-					return fmt.Errorf("couldn't upload content file %q: %w", file, err)
+					uploadErr = fmt.Errorf("couldn't upload content file %q: %w", file, err)
 				}
+			}
+
+			if uploadErr != nil {
+				rememberIfClientError(&mu, state, file, uploadErr)
+				return uploadErr
 			}
 
 			mu.Lock()
 			state.remoteFiles[file] = state.localFiles[file]
+			delete(state.failedFiles, file)
 			mu.Unlock()
 
 			return nil
@@ -387,6 +402,19 @@ func reconcileContentState(ctx context.Context, cli labcli.CLI, config PushConfi
 	deleteErr := p.Wait()
 
 	return errors.Join(uploadErr, deleteErr)
+}
+
+// rememberIfClientError records file's local digest in state.failedFiles when err
+// wraps a 4xx StatusError, so the file isn't re-uploaded until it changes.
+func rememberIfClientError(mu *sync.Mutex, state pushState, file string, err error) {
+	var statusErr *api.StatusError
+	if !errors.As(err, &statusErr) || statusErr.Code < 400 || statusErr.Code >= 500 {
+		return
+	}
+
+	mu.Lock()
+	state.failedFiles[file] = state.localFiles[file]
+	mu.Unlock()
 }
 
 func listContentFilesRemote(ctx context.Context, client *api.Client, kind content.ContentKind, name string) (map[string]string, error) {

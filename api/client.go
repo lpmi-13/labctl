@@ -26,6 +26,16 @@ var (
 	ErrServiceUnavailable     = errors.New("service unavailable")
 )
 
+// StatusError is returned for non-2xx responses that don't map to a dedicated Err* sentinel.
+type StatusError struct {
+	Code int
+	Body string
+}
+
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("request failed with status %d: %s", e.Code, e.Body)
+}
+
 func isAuthenticationRequiredResponse(resp *http.Response) bool {
 	return resp.StatusCode == http.StatusUnauthorized
 }
@@ -399,7 +409,7 @@ func (c *Client) doRequest(req *http.Request) (*http.Response, error) {
 				return nil, ErrRateLimitExceeded
 			}
 
-			return nil, backoff.Permanent(fmt.Errorf("request failed with status %d: %s", resp.StatusCode, body))
+			return nil, backoff.Permanent(&StatusError{Code: resp.StatusCode, Body: string(body)})
 		}
 
 		return resp, nil

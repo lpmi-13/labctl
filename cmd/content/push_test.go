@@ -343,3 +343,25 @@ func TestListFilesToleratesVanishedDir(t *testing.T) {
 	_, err = listDirsRecursive(filepath.Join(t.TempDir(), "gone"), nil)
 	assert.NoError(t, err)
 }
+
+func TestPushStateToUploadSkipsFailedFiles(t *testing.T) {
+	state := pushState{
+		localFiles: map[string]string{
+			"a": "d1",
+			"b": "d2",
+			"c": "d3",
+		},
+		remoteFiles: map[string]string{
+			"a": "d1",
+		},
+		failedFiles: map[string]string{
+			"b": "d2",
+			"c": "old",
+		},
+	}
+
+	files := state.toUpload()
+	slices.Sort(files)
+
+	assert.Equal(t, []string{"c"}, files)
+}
