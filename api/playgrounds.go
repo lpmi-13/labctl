@@ -220,6 +220,7 @@ type PlaygroundTab struct {
 	PathRewrite string `yaml:"pathRewrite,omitempty" json:"pathRewrite,omitempty"`
 	URL         string `yaml:"url,omitempty" json:"url,omitempty"`
 	Pane        string `yaml:"pane,omitempty" json:"pane,omitempty"`
+	Target      string `yaml:"target,omitempty" json:"target,omitempty"`
 }
 
 type InitCondition struct {
