@@ -84,7 +84,7 @@ func (pc *PlayConn) Start() error {
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		if attempt > 0 {
 			// Exponential backoff: 500ms, 1s, 2s, 4s, 5s, 5s, 5s, 5s, 5s, 5s
-			delay := max(maxDelay, baseDelay*time.Duration(1<<uint(attempt-1)))
+			delay := min(maxDelay, baseDelay*time.Duration(1<<uint(attempt-1)))
 			slog.Debug("Retrying WebSocket connection", "attempt", attempt+1, "delay", delay)
 
 			select {
@@ -201,6 +201,13 @@ func (pc *PlayConn) WaitPlayReady(timeout time.Duration, s *spinner.Spinner) err
 		)
 		s.Start()
 		defer s.Stop()
+	}
+
+	if pc.play.IsInitialized() {
+		if s != nil {
+			s.FinalMSG = "Warming up playground... Done.\n"
+		}
+		return nil
 	}
 
 	ctx, cancel := context.WithTimeout(pc.ctx, timeout)
