@@ -3,7 +3,12 @@ package playground
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
+
+	"github.com/iximiuz/labctl/api"
 )
 
 func TestReadManifestFile_NewFormat(t *testing.T) {
@@ -206,6 +211,95 @@ playground:
 	}
 	if noKernelMachine.Kernel != nil {
 		t.Errorf("Expected no-kernel machine kernel to be nil, got %+v", noKernelMachine.Kernel)
+	}
+}
+
+func TestReadManifestFile_StartupFiles(t *testing.T) {
+	// Top-level startupFiles entry (new form, using source + machines) plus a
+	// legacy per-machine entry - both must parse.
+	content := `kind: playground
+name: startup-files-playground
+playground:
+  startupFiles:
+    - path: /opt/app
+      source: __static__/app/
+      owner: laborant
+      mode: "644"
+      machines: [node-01]
+  machines:
+    - name: node-01
+      startupFiles:
+        - path: /home/laborant/.bashrc
+          append: true
+          content: |
+            alias k=kubectl
+`
+
+	tmpFile := createTempManifest(t, content)
+	defer os.Remove(tmpFile)
+
+	manifest, err := readManifestFile(tmpFile)
+	if err != nil {
+		t.Fatalf("Failed to read manifest: %v", err)
+	}
+
+	if len(manifest.Playground.StartupFiles) != 1 {
+		t.Fatalf("Expected 1 top-level startup file, got %d", len(manifest.Playground.StartupFiles))
+	}
+	topLevel := manifest.Playground.StartupFiles[0]
+	if topLevel.Path != "/opt/app" {
+		t.Errorf("Expected path '/opt/app', got '%s'", topLevel.Path)
+	}
+	if topLevel.Source != "__static__/app/" {
+		t.Errorf("Expected source '__static__/app/', got '%s'", topLevel.Source)
+	}
+	if len(topLevel.Machines) != 1 || topLevel.Machines[0] != "node-01" {
+		t.Errorf("Expected machines ['node-01'], got %v", topLevel.Machines)
+	}
+
+	if len(manifest.Playground.Machines) != 1 {
+		t.Fatalf("Expected 1 machine, got %d", len(manifest.Playground.Machines))
+	}
+	legacy := manifest.Playground.Machines[0].StartupFiles
+	if len(legacy) != 1 {
+		t.Fatalf("Expected 1 legacy per-machine startup file, got %d", len(legacy))
+	}
+	if legacy[0].Path != "/home/laborant/.bashrc" || !legacy[0].Append {
+		t.Errorf("Unexpected legacy startup file: %+v", legacy[0])
+	}
+}
+
+func TestStartupFile_MarshalOmitsUnsetFields(t *testing.T) {
+	file := api.StartupFile{
+		Path:    "/home/laborant/.bashrc",
+		Content: "alias k=kubectl\n",
+		Append:  true,
+	}
+
+	out, err := yaml.Marshal(file)
+	if err != nil {
+		t.Fatalf("Failed to marshal StartupFile: %v", err)
+	}
+
+	for _, key := range []string{"mode:", "owner:", "source:", "machines:", "extract:"} {
+		if strings.Contains(string(out), key) {
+			t.Errorf("Expected marshaled YAML to omit %q, got:\n%s", key, out)
+		}
+	}
+
+	fileWithExtract := api.StartupFile{
+		Path:    "/home/laborant/app.tar.gz",
+		Source:  "__static__/app.tar.gz",
+		Extract: true,
+	}
+
+	outWithExtract, err := yaml.Marshal(fileWithExtract)
+	if err != nil {
+		t.Fatalf("Failed to marshal StartupFile: %v", err)
+	}
+
+	if !strings.Contains(string(outWithExtract), "extract: true") {
+		t.Errorf("Expected marshaled YAML to contain 'extract: true', got:\n%s", outWithExtract)
 	}
 }
 

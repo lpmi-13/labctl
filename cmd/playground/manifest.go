@@ -66,6 +66,7 @@ func getManifest(ctx context.Context, cli labcli.CLI, name string) (*api.Playgro
 		Playground: api.PlaygroundSpec{
 			Networks:       playground.Networks,
 			Machines:       playground.Machines,
+			StartupFiles:   playground.StartupFiles,
 			Tabs:           playground.Tabs,
 			InitTasks:      playground.InitTasks,
 			InitConditions: playground.InitConditions,

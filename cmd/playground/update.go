@@ -142,6 +142,7 @@ func runUpdate(ctx context.Context, cli labcli.CLI, name string, opts *updateOpt
 		Categories:     manifest.Categories,
 		Networks:       manifest.Playground.Networks,
 		Machines:       manifest.Playground.Machines,
+		StartupFiles:   manifest.Playground.StartupFiles,
 		Tabs:           manifest.Playground.Tabs,
 		InitTasks:      manifest.Playground.InitTasks,
 		InitConditions: manifest.Playground.InitConditions,

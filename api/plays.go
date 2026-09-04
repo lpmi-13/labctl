@@ -387,6 +387,7 @@ type CreatePlayRequest struct {
 	Tabs                    []PlaygroundTab     `json:"tabs,omitempty"`
 	Networks                []PlaygroundNetwork `json:"networks,omitempty"`
 	Machines                []PlaygroundMachine `json:"machines,omitempty"`
+	StartupFiles            []StartupFile       `json:"startupFiles,omitempty"`
 	InitTasks               map[string]InitTask `json:"initTasks,omitempty"`
 	InitConditions          map[string]string   `json:"initConditions,omitempty"`
 	SafetyDisclaimerConsent bool                `json:"safetyDisclaimerConsent"`

@@ -235,6 +235,7 @@ func runStartPlayground(ctx context.Context, cli labcli.CLI, opts *startOptions)
 		req.Tabs = manifest.Playground.Tabs
 		req.Networks = manifest.Playground.Networks
 		req.Machines = manifest.Playground.Machines
+		req.StartupFiles = manifest.Playground.StartupFiles
 		if len(manifest.Playground.InitTasks) > 0 {
 			req.InitTasks = manifest.Playground.InitTasks
 		}

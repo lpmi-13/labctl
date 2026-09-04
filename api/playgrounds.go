@@ -21,14 +21,15 @@ type Playground struct {
 	PageURL        string              `yaml:"pageUrl" json:"pageUrl"`
 	Networks       []PlaygroundNetwork `yaml:"networks" json:"networks"`
 	Machines       []PlaygroundMachine `yaml:"machines" json:"machines"`
+	StartupFiles   []StartupFile       `yaml:"startupFiles,omitempty" json:"startupFiles,omitempty"`
 	Tabs           []PlaygroundTab     `yaml:"tabs" json:"tabs"`
 	InitTasks      map[string]InitTask `yaml:"initTasks,omitempty" json:"initTasks,omitempty"`
-	InitConditions InitConditions      `yaml:"initConditions,omitempty" json:"initConditions,omitempty"`
+	InitConditions InitConditions      `yaml:"initConditions" json:"initConditions"`
 	RegistryAuth   string              `yaml:"registryAuth,omitempty" json:"registryAuth,omitempty"`
 	PortForwards   []PortForward       `yaml:"portForwards,omitempty" json:"portForwards,omitempty"`
 
 	AccessControl PlaygroundAccessControl `yaml:"accessControl" json:"accessControl"`
-	UserAccess    PlaygroundUserAccess    `yaml:"userAccess,omitempty" json:"userAccess,omitempty"`
+	UserAccess    PlaygroundUserAccess    `yaml:"userAccess" json:"userAccess"`
 }
 
 type GetPlaygroundOptions struct {
@@ -109,13 +110,22 @@ type MachineResources struct {
 	RAMSize  string `yaml:"ramSize,omitempty" json:"ramSize,omitempty"`
 }
 
-type MachineStartupFile struct {
-	Path    string `json:"path"`
-	Content string `json:"content"`
-	Mode    string `json:"mode,omitempty"`
-	Owner   string `json:"owner,omitempty"`
-	Append  bool   `json:"append,omitempty"`
+type StartupFile struct {
+	Path     string   `yaml:"path" json:"path"`
+	Content  string   `yaml:"content,omitempty" json:"content,omitempty"`
+	Source   string   `yaml:"source,omitempty" json:"source,omitempty"`
+	Mode     string   `yaml:"mode,omitempty" json:"mode,omitempty"`
+	Owner    string   `yaml:"owner,omitempty" json:"owner,omitempty"`
+	Append   bool     `yaml:"append,omitempty" json:"append,omitempty"`
+	Extract  bool     `yaml:"extract,omitempty" json:"extract,omitempty"`
+	Machines []string `yaml:"machines,omitempty" json:"machines,omitempty"`
 }
+
+// MachineStartupFile is the legacy per-machine startup file entry. It's now
+// an alias of StartupFile: the two forms share the same shape, and the
+// `machines` field is simply unused (and never emitted) in the per-machine
+// context.
+type MachineStartupFile = StartupFile
 
 type MachineBackend string
 
@@ -274,9 +284,10 @@ type PlaygroundUserAccess struct {
 type PlaygroundSpec struct {
 	Networks       []PlaygroundNetwork `yaml:"networks,omitempty" json:"networks,omitempty"`
 	Machines       []PlaygroundMachine `yaml:"machines,omitempty" json:"machines,omitempty"`
+	StartupFiles   []StartupFile       `yaml:"startupFiles,omitempty" json:"startupFiles,omitempty"`
 	Tabs           []PlaygroundTab     `yaml:"tabs,omitempty" json:"tabs,omitempty"`
 	InitTasks      map[string]InitTask `yaml:"initTasks,omitempty" json:"initTasks,omitempty"`
-	InitConditions InitConditions      `yaml:"initConditions,omitempty" json:"initConditions,omitempty"`
+	InitConditions InitConditions      `yaml:"initConditions" json:"initConditions"`
 	RegistryAuth   string              `yaml:"registryAuth,omitempty" json:"registryAuth,omitempty"`
 	PortForwards   []PortForward       `yaml:"portForwards,omitempty" json:"portForwards,omitempty"`
 
@@ -313,6 +324,7 @@ type CreatePlaygroundRequest struct {
 	Markdown       string              `yaml:"markdown,omitempty" json:"markdown,omitempty"`
 	Networks       []PlaygroundNetwork `yaml:"networks" json:"networks"`
 	Machines       []PlaygroundMachine `yaml:"machines" json:"machines"`
+	StartupFiles   []StartupFile       `yaml:"startupFiles,omitempty" json:"startupFiles,omitempty"`
 	Tabs           []PlaygroundTab     `yaml:"tabs" json:"tabs"`
 	InitTasks      map[string]InitTask `yaml:"initTasks" json:"initTasks"`
 	InitConditions InitConditions      `yaml:"initConditions" json:"initConditions"`
@@ -340,6 +352,7 @@ type UpdatePlaygroundRequest struct {
 	Markdown       string              `yaml:"markdown,omitempty" json:"markdown,omitempty"`
 	Networks       []PlaygroundNetwork `yaml:"networks" json:"networks"`
 	Machines       []PlaygroundMachine `yaml:"machines" json:"machines"`
+	StartupFiles   []StartupFile       `yaml:"startupFiles,omitempty" json:"startupFiles,omitempty"`
 	Tabs           []PlaygroundTab     `yaml:"tabs" json:"tabs"`
 	InitTasks      map[string]InitTask `yaml:"initTasks" json:"initTasks"`
 	InitConditions InitConditions      `yaml:"initConditions" json:"initConditions"`
