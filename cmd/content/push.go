@@ -64,7 +64,7 @@ func newPushCommand(cli labcli.CLI) *cobra.Command {
 	var opts pushOptions
 
 	cmd := &cobra.Command{
-		Use:               "push [flags] <challenge|tutorial|skill-path|course|training|blog-post> <name>",
+		Use:               "push [flags] <challenge|tutorial|skill-path|course|training|blog-post|shell-gym> <name>",
 		Short:             `Push content files from the local directory to the remote content repository (the "inner author loop").`,
 		Args:              cobra.ExactArgs(2),
 		ValidArgsFunction: completion.ContentArgs(cli),
@@ -150,6 +150,13 @@ type pushState struct {
 	// failedFiles maps a local file to the digest that the server rejected
 	// with a client error - such a file is not re-uploaded until it changes.
 	failedFiles map[string]string
+
+	// archiveFolders are the folders the startup file archives were built from
+	// (see createStartupFileArchives). Authors keep them out of the push with
+	// .labctlignore, which also hides them from listDirs - so watch mode adds
+	// them explicitly, or an edit inside such a folder would never trigger a
+	// rebuild of its archive.
+	archiveFolders []string
 }
 
 func (s *pushState) toUpload() []string {
@@ -186,6 +193,10 @@ func RunPushOnce(ctx context.Context, cli labcli.CLI, config PushConfig) error {
 	state.remoteFiles, err = listContentFilesRemote(ctx, cli.Client(), config.Kind, config.Name)
 	if err != nil {
 		return fmt.Errorf("couldn't list remote content files: %w", err)
+	}
+
+	if _, err := createStartupFileArchives(config.Dir); err != nil {
+		return fmt.Errorf("couldn't create startup file archives: %w", err)
 	}
 
 	state.localFiles, err = listContentFilesLocal(config.Dir)
@@ -231,6 +242,11 @@ func RunPushWatch(ctx context.Context, cli labcli.CLI, config PushConfig) error 
 		return fmt.Errorf("couldn't list remote content files: %w", err)
 	}
 
+	state.archiveFolders, err = createStartupFileArchives(config.Dir)
+	if err != nil {
+		return fmt.Errorf("couldn't create startup file archives: %w", err)
+	}
+
 	state.localFiles, err = listContentFilesLocal(config.Dir)
 	if err != nil {
 		return fmt.Errorf("couldn't list local content files: %w", err)
@@ -258,6 +274,12 @@ func RunPushWatch(ctx context.Context, cli labcli.CLI, config PushConfig) error 
 			return nil
 
 		case <-watcher.Events:
+			state.archiveFolders, err = createStartupFileArchives(config.Dir)
+			if err != nil {
+				cli.PrintErr("\n⚠️ WARNING: couldn't create startup file archives: %s\n\n", err)
+				continue
+			}
+
 			state.localFiles, err = listContentFilesLocal(config.Dir)
 			if err != nil {
 				// Transient listing errors (e.g., caused by short-lived tmp files)
@@ -481,6 +503,16 @@ func addWatchDirs(cli labcli.CLI, watcher *fsnotify.Watcher, state pushState) er
 	dirs, err := listDirs(state.dir)
 	if err != nil {
 		return err
+	}
+
+	for _, folder := range state.archiveFolders {
+		dirs = append(dirs, folder)
+
+		subdirs, err := listDirs(folder)
+		if err != nil {
+			return err
+		}
+		dirs = append(dirs, subdirs...)
 	}
 
 	for _, dir := range dirs {
