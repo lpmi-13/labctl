@@ -292,7 +292,10 @@ func reconcileContentState(ctx context.Context, cli labcli.CLI, config PushConfi
 
 	p := pool.New().WithMaxGoroutines(concurrency).WithErrors().WithContext(ctx)
 
-	var mu sync.Mutex
+	var (
+		mu      sync.Mutex
+		changed bool
+	)
 
 	// Upload new and update existing files.
 	for _, file := range state.toUpload() {
@@ -310,6 +313,7 @@ func reconcileContentState(ctx context.Context, cli labcli.CLI, config PushConfi
 			}
 		}
 
+		changed = true
 		p.Go(func(ctx context.Context) error {
 			var uploadErr error
 
@@ -384,6 +388,7 @@ func reconcileContentState(ctx context.Context, cli labcli.CLI, config PushConfi
 			continue
 		}
 
+		changed = true
 		p.Go(func(ctx context.Context) error {
 			err := cli.Client().DeleteContentFile(ctx, config.Kind, config.Name, file)
 
@@ -401,7 +406,16 @@ func reconcileContentState(ctx context.Context, cli labcli.CLI, config PushConfi
 
 	deleteErr := p.Wait()
 
-	return errors.Join(uploadErr, deleteErr)
+	// Static files are pinned to the content version on the pages that use
+	// them - announce the batch so a re-pushed file is picked up right away.
+	var bumpErr error
+	if changed {
+		if bumpErr = cli.Client().BumpContentVersion(ctx, config.Kind, config.Name); bumpErr != nil {
+			bumpErr = fmt.Errorf("couldn't bump the content version: %w", bumpErr)
+		}
+	}
+
+	return errors.Join(uploadErr, deleteErr, bumpErr)
 }
 
 // rememberIfClientError records file's local digest in state.failedFiles when err

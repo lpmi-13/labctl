@@ -124,6 +124,31 @@ func (c *Client) UploadContentFile(
 	return nil
 }
 
+// BumpContentVersion announces a finished batch of file uploads: rendered
+// references to the content's static files are pinned to its version, and the
+// presigned uploads themselves happen outside of any API request.
+func (c *Client) BumpContentVersion(
+	ctx context.Context,
+	kind content.ContentKind,
+	name string,
+) error {
+	body, err := toJSONBody(map[string]string{
+		"kind": kind.String(),
+		"name": name,
+	})
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.Post(ctx, "/content/version", nil, nil, body)
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+
+	return nil
+}
+
 func (c *Client) DeleteContentFile(
 	ctx context.Context,
 	kind content.ContentKind,
